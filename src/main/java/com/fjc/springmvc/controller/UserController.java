@@ -5,14 +5,18 @@ import com.fjc.springmvc.annotation.Qualifier;
 import com.fjc.springmvc.annotation.RequestMapping;
 import com.fjc.springmvc.service.IUserService;
 
-@Controller("user")
+@Controller("userController")
 public class UserController {
 
     @Qualifier("userServiceImpl")
     private IUserService userServiceImpl;
 
-    @RequestMapping("getUser")
+    @RequestMapping("/getUser")
     public String getUser(){
-        return "fjc";
+        System.out.println("请求user");
+        String id = "8888";
+        String name = userServiceImpl.getUser(id);
+        System.out.println("name:" + name);
+        return name;
     }
 }

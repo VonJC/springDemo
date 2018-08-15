@@ -1,6 +1,7 @@
 package com.fjc.springmvc.servlet;
 
 import com.fjc.springmvc.annotation.*;
+import com.fjc.springmvc.controller.UserController;
 
 import javax.servlet.ServletConfig;
 import javax.servlet.ServletException;
@@ -21,7 +22,7 @@ import java.util.List;
 import java.util.Map;
 
 @WebServlet(name="dispatherServlet", urlPatterns="/*", loadOnStartup=1,
-        initParams={@WebInitParam(name="base-pacage", value="com.fjc.springmvc")})
+        initParams={@WebInitParam(name="base-package", value="com.fjc.springmvc")})
 public class DispatherServlet extends HttpServlet {
 
     //扫描基本包
@@ -57,6 +58,8 @@ public class DispatherServlet extends HttpServlet {
 
         }catch (IllegalAccessException e){
 
+        } catch (InstantiationException e) {
+            e.printStackTrace();
         }
 
 
@@ -71,13 +74,14 @@ public class DispatherServlet extends HttpServlet {
             if(file.isDirectory()){
                 scanBasePackage(basePackage + "." + file.getName());
             }else if(file.isFile()){
-                packageNames.add(basePackage + file.getName().split("\\.")[0]);
+                packageNames.add(basePackage + "." + file.getName().split("\\.")[0]);
+                System.out.println("扫码包：" + basePackage + "." + file.getName().split("\\.")[0]);
             }
         }
 
     }
 
-    private void instance(List<String> packageNames) throws ClassNotFoundException{
+    private void instance(List<String> packageNames) throws ClassNotFoundException, IllegalAccessException, InstantiationException {
         if(packageNames.size() < 1){
             return;
         }
@@ -86,18 +90,21 @@ public class DispatherServlet extends HttpServlet {
             if(clas.isAnnotationPresent(Controller.class)){
                 Controller controller = (Controller) clas.getAnnotation(Controller.class);
                 String controllerName = controller.value();
-                instanceMap.put(controllerName, controller);
+                instanceMap.put(controllerName, clas.newInstance());
                 nameMap.put(packageName, controllerName);
+                System.out.println("controllerName：" + controllerName);
             } else if(clas.isAnnotationPresent(Service.class)){
                 Service service = (Service) clas.getAnnotation(Service.class);
                 String serviceName = service.value();
-                instanceMap.put(serviceName, service);
+                instanceMap.put(serviceName, clas.newInstance());
                 nameMap.put(packageName, serviceName);
+                System.out.println("serviceName：" + serviceName);
             } else if(clas.isAnnotationPresent(Repository.class)){
                 Repository repository = (Repository) clas.getAnnotation(Repository.class);
                 String repositoryName = repository.value();
-                instanceMap.put(repositoryName, repository);
+                instanceMap.put(repositoryName, clas.newInstance());
                 nameMap.put(packageName, repositoryName);
+                System.out.println("repositoryName：" + repositoryName);
             }
         }
     }
@@ -115,6 +122,7 @@ public class DispatherServlet extends HttpServlet {
                     String name = field.getAnnotation(Qualifier.class).value();
                     field.setAccessible(true);
                     field.set(entry.getValue(), instanceMap.get(name));
+                    System.out.println("IOC：" + name);
                 }
             }
 
@@ -144,6 +152,8 @@ public class DispatherServlet extends HttpServlet {
 
                         urlMethodMap.put(baseUrl.toString(), method);
                         methodPackageMap.put(method, packageName);
+
+                        System.out.println("hanler url：" + baseUrl.toString());
                     }
                 }
             }
@@ -153,11 +163,13 @@ public class DispatherServlet extends HttpServlet {
 
     @Override
     public void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        System.out.println("get .....");
         doPost(request, response);
     }
 
     @Override
     public  void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        System.out.println("post .....");
         String uri = request.getRequestURI();
         String contextPath = request.getContextPath();//基本
         String path = uri.replace(contextPath, "");
@@ -168,7 +180,7 @@ public class DispatherServlet extends HttpServlet {
             String controllerName = nameMap.get(packageName);
 
             //拿到Web层类
-            Class clas = (Class)instanceMap.get(controllerName);
+            UserController clas = (UserController)instanceMap.get(controllerName);
 
             try{
                 method.setAccessible(true);
