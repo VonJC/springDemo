@@ -9,6 +9,6 @@ import java.lang.annotation.Documented;
  **/
 @Documented
 public @interface Controller {
-
+    public String value();
 
 }
