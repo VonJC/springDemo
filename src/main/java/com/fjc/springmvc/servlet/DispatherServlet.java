@@ -1,15 +1,18 @@
 package com.fjc.springmvc.servlet;
 
-import com.fjc.springmvc.annotation.Controller;
-import com.fjc.springmvc.annotation.Repository;
-import com.fjc.springmvc.annotation.Service;
+import com.fjc.springmvc.annotation.*;
 
 import javax.servlet.ServletConfig;
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebInitParam;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import java.io.File;
+import java.io.IOException;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.util.ArrayList;
@@ -52,6 +55,8 @@ public class DispatherServlet extends HttpServlet {
 
         }catch(ClassNotFoundException e){
 
+        }catch (IllegalAccessException e){
+
         }
 
 
@@ -84,18 +89,95 @@ public class DispatherServlet extends HttpServlet {
                 instanceMap.put(controllerName, controller);
                 nameMap.put(packageName, controllerName);
             } else if(clas.isAnnotationPresent(Service.class)){
-
+                Service service = (Service) clas.getAnnotation(Service.class);
+                String serviceName = service.value();
+                instanceMap.put(serviceName, service);
+                nameMap.put(packageName, serviceName);
             } else if(clas.isAnnotationPresent(Repository.class)){
-
+                Repository repository = (Repository) clas.getAnnotation(Repository.class);
+                String repositoryName = repository.value();
+                instanceMap.put(repositoryName, repository);
+                nameMap.put(packageName, repositoryName);
             }
         }
     }
 
-    private void springIOC(){
+    /**
+     * TO KNOW 将每个类内的注入类  从容器中取出   放入  （所有的注入类都是引用，实际放在容器中）
+     * @throws IllegalAccessException
+     * @throws ClassNotFoundException
+     */
+    private void springIOC() throws IllegalAccessException, ClassNotFoundException {
+        for(Map.Entry<String, Object> entry : instanceMap.entrySet()){
+            Field[] fields = entry.getValue().getClass().getDeclaredFields();
+            for(Field field : fields){
+                if(field.isAnnotationPresent(Qualifier.class)){
+                    String name = field.getAnnotation(Qualifier.class).value();
+                    field.setAccessible(true);
+                    field.set(entry.getValue(), instanceMap.get(name));
+                }
+            }
 
+
+        }
     }
 
-    private void hanlerUrlMethodMap(){
+    private void hanlerUrlMethodMap() throws ClassNotFoundException {
+        if(packageNames.size() < 1){
+            return;
+        }
+        for(String packageName : packageNames){
+            Class clas = Class.forName(packageName);
+            if(clas.isAnnotationPresent(Controller.class)){
 
+                Method[] methods = clas.getMethods();
+                StringBuffer baseUrl = new StringBuffer();
+                if(clas.isAnnotationPresent(RequestMapping.class)){
+                    RequestMapping requestMapping = (RequestMapping) clas.getAnnotation(RequestMapping.class);
+                    baseUrl.append(requestMapping.value());
+                }
+
+                for(Method method : methods){
+                    if(method.isAnnotationPresent(RequestMapping.class)){
+                        RequestMapping requestMapping = (RequestMapping) method.getAnnotation(RequestMapping.class);
+                        baseUrl.append(requestMapping.value());
+
+                        urlMethodMap.put(baseUrl.toString(), method);
+                        methodPackageMap.put(method, packageName);
+                    }
+                }
+            }
+
+        }
+    }
+
+    @Override
+    public void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        doPost(request, response);
+    }
+
+    @Override
+    public  void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        String uri = request.getRequestURI();
+        String contextPath = request.getContextPath();//基本
+        String path = uri.replace(contextPath, "");
+
+        Method method = urlMethodMap.get(path);
+        if(method != null){
+            String packageName = methodPackageMap.get(method);
+            String controllerName = nameMap.get(packageName);
+
+            //拿到Web层类
+            Class clas = (Class)instanceMap.get(controllerName);
+
+            try{
+                method.setAccessible(true);
+                method.invoke(clas);
+            }catch(IllegalAccessException e){
+                e.printStackTrace();
+            }catch(InvocationTargetException e){
+                e.printStackTrace();
+            }
+        }
     }
 }
